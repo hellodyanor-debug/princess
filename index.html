@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>For Princess</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EDE7F6;--paper:#fff;--ink:#241B35;--mute:#6b5f80;--pink:#FF4F81;--gold:#FFC857;--line:#d5c9ea;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1A1328;--paper:#261C38;--ink:#F4EEFF;--mute:#a99cc4;--line:#43355e}}
+:root[data-theme="dark"]{--bg:#1A1328;--paper:#261C38;--ink:#F4EEFF;--mute:#a99cc4;--line:#43355e}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font:400 17px/1.5 "Instrument Sans",system-ui,sans-serif;display:flex;justify-content:center;padding:24px 16px}
+h1,h2{font-family:"Bricolage Grotesque","Trebuchet MS",sans-serif;line-height:1.05;margin:0}
+main{width:100%;max-width:520px}
+.card{background:var(--paper);border:2px solid var(--ink);border-radius:20px;padding:28px 24px;box-shadow:6px 6px 0 var(--ink)}
+.hidden{display:none!important}
+h1{font-size:clamp(2.2rem,9vw,3.4rem);font-weight:800}
+h2{font-size:1.7rem;font-weight:800;margin-bottom:6px}
+p{margin:12px 0}.mute{color:var(--mute)}
+label{display:block;font-weight:600;margin-top:16px;font-size:.95rem}
+input,textarea{width:100%;margin-top:6px;padding:12px;border:2px solid var(--line);border-radius:12px;background:transparent;color:var(--ink);font:inherit}
+input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button{font:600 1rem "Instrument Sans",sans-serif;cursor:pointer;border:2px solid var(--ink);border-radius:999px;padding:12px 22px;background:var(--paper);color:var(--ink)}
+button.primary{background:var(--pink);color:#fff}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.chip{border-radius:14px;padding:10px 14px}
+.chip[aria-pressed=true]{background:var(--gold);color:#241B35}
+#arena{position:relative;height:150px;margin-top:20px}
+#yes{position:absolute;left:0;top:20px;transform-origin:left center;transition:transform .2s}
+#no{position:absolute;right:0;top:30px;transition:left .18s ease-out,top .18s ease-out;z-index:5}
+.ticket{border:2px dashed var(--ink);border-radius:16px;padding:20px;margin-top:16px;background:linear-gradient(90deg,var(--gold) 0 10px,transparent 10px)}
+.ticket b{font-family:"Bricolage Grotesque",sans-serif;font-size:1.3rem;display:block}
+canvas{position:fixed;inset:0;pointer-events:none;z-index:9}
+.toast{font-size:.9rem;color:var(--mute);min-height:1.4em}
+#mute{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:12px;z-index:20;padding:8px 14px;font-size:.9rem}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div style="position:fixed;left:0;bottom:0;width:200px;height:200px;opacity:.01;pointer-events:none;z-index:-1"><div id="yt"></div></div>
+<button id="mute" aria-pressed="false" aria-label="Toggle music">&#9835; Music on</button>
+<main>
+
+<section id="ask" class="card hidden">
+  <p class="mute" id="hi"></p>
+  <h1 id="q">Will you go on a date with me?</h1>
+  <p id="note"></p>
+  <div id="arena">
+    <button id="yes" class="primary">Yes</button>
+    <button id="no">No</button>
+  </div>
+  <div class="toast" id="hint" role="status"></div>
+</section>
+
+<section id="plan" class="card hidden">
+  <h2>Great. Let's plan it.</h2>
+  <p class="mute">Pick one from each row.</p>
+  <label>What sounds good?</label>
+  <div class="row" data-k="what">
+    <button class="chip" aria-pressed="false">Dinner</button><button class="chip" aria-pressed="false">Coffee</button>
+    <button class="chip" aria-pressed="false">Movie</button><button class="chip" aria-pressed="false">Long walk</button>
+  </div>
+  <label>Which day?</label>
+  <div class="row" data-k="day">
+    <button class="chip" aria-pressed="false">Friday</button><button class="chip" aria-pressed="false">Saturday</button><button class="chip" aria-pressed="false">Sunday</button>
+  </div>
+  <label>What time?</label>
+  <div class="row" data-k="time">
+    <button class="chip" aria-pressed="false">Afternoon</button><button class="chip" aria-pressed="false">Evening</button>
+  </div>
+  <div class="row"><button class="primary" id="confirm" disabled>Confirm the date</button></div>
+</section>
+
+<section id="done" class="card hidden">
+  <h2>It's a date.</h2>
+  <div class="ticket" id="tk"></div>
+  <p class="mute">Send this back so <span id="fromName">they</span> knows the plan.</p>
+  <div class="row"><button class="primary" id="copyReply">Copy reply</button></div>
+  <textarea id="reply" class="hidden" rows="3" readonly></textarea>
+  <div class="toast" id="t2" role="status"></div>
+</section>
+
+</main>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var data=null,pick={};
+function show(id){["ask","plan","done"].forEach(function(s){$(s).classList.toggle("hidden",s!==id)})}
+function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))))}
+function dec(s){try{return JSON.parse(decodeURIComponent(escape(atob(s))))}catch(e){return null}}
+function copy(text,el,msg){
+  var ok=false;
+  try{navigator.clipboard.writeText(text).then(function(){el.textContent=msg},function(){fb()});ok=true}catch(e){}
+  if(!ok)fb();
+  function fb(){var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");el.textContent=msg}catch(e){el.textContent="Select and copy the text manually."}ta.remove()}
+}
+
+/* ---- boot ---- */
+data={to:"Princess",from:"Raihan",msg:"You make ordinary days feel special. I'd love to take you out."};
+startAsk();
+
+/* ---- ask ---- */
+var noCount=0,px=-999,py=-999;
+var lines=["Nope, too slow!","Ha, missed!","Are you sure about that?","It has a mind of its own.","Almost had it!","Just press Yes already.","Still trying? Cute.","No is having a great time.","The Yes button believes in you."];
+function startAsk(){
+  show("ask");
+  $("hi").textContent="For "+data.to;$("q").textContent=data.to+", will you go on a date with me?";
+  $("note").textContent=data.msg||"";
+  noCount=0;$("yes").style.transform="";$("hint").textContent="";
+  var n=$("no");n.style.position="";n.style.left="";n.style.top="";n.style.right="";
+}
+function dodge(e){
+  if(e&&e.cancelable)e.preventDefault();
+  noCount++;
+  $("yes").style.transform="scale("+Math.min(1+noCount*.08,1.7)+")";
+  $("hint").textContent=lines[(noCount-1)%lines.length];
+  var b=$("no"),W=innerWidth-b.offsetWidth-16,H=innerHeight-b.offsetHeight-16,x,y,t=0;
+  do{x=8+Math.random()*W;y=8+Math.random()*H;t++}while(t<12&&Math.hypot(x-px,y-py)<180);
+  b.style.position="fixed";b.style.right="auto";b.style.left=x+"px";b.style.top=y+"px";
+}
+document.addEventListener("pointermove",function(e){
+  px=e.clientX;py=e.clientY;
+  if($("ask").classList.contains("hidden"))return;
+  var r=$("no").getBoundingClientRect();
+  if(px>r.left-70&&px<r.right+70&&py>r.top-70&&py<r.bottom+70)dodge();
+});
+["pointerdown","touchstart","mousedown","click","focus"].forEach(function(ev){
+  $("no").addEventListener(ev,function(e){if(ev==="pointerdown"||ev==="touchstart"){px=e.clientX||0;py=e.clientY||0}dodge(e)},{passive:false});
+});
+$("yes").onclick=function(){show("plan");burst()};
+
+/* ---- plan ---- */
+document.querySelectorAll("[data-k]").forEach(function(g){
+  g.addEventListener("click",function(e){
+    var b=e.target.closest(".chip");if(!b)return;
+    g.querySelectorAll(".chip").forEach(function(c){c.setAttribute("aria-pressed","false")});
+    b.setAttribute("aria-pressed","true");pick[g.dataset.k]=b.textContent;
+    $("confirm").disabled=!(pick.what&&pick.day&&pick.time);
+  });
+});
+$("confirm").onclick=function(){
+  var f=data.from||"you";
+  $("tk").innerHTML="<b>Admit two</b>"+pick.what+" on "+pick.day+" "+pick.time.toLowerCase()+
+    (data.from?"<br><span class='mute'>with "+esc(data.from)+"</span>":"");
+  $("fromName").textContent=data.from||"they";
+  $("reply").value="Yes! "+pick.what+" on "+pick.day+" "+pick.time.toLowerCase()+" works for me."+(data.to?" - "+data.to:"");
+  show("done");burst();
+};
+function esc(s){return s.replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+$("copyReply").onclick=function(){copy($("reply").value,$("t2"),"Copied. Paste it into your chat.")};
+
+/* ---- hearts burst ---- */
+var cv=$("fx"),cx=cv.getContext("2d"),parts=[],raf=0;
+function size(){cv.width=innerWidth;cv.height=innerHeight}
+addEventListener("resize",size);size();
+function burst(){
+  if(matchMedia("(prefers-reduced-motion:reduce)").matches)return;
+  var cols=["#FF4F81","#FFC857","#8E6CEF","#FF8FA3"];
+  for(var i=0;i<70;i++)parts.push({x:cv.width/2,y:cv.height*.6,vx:(Math.random()-.5)*12,vy:-Math.random()*13-3,s:8+Math.random()*12,c:cols[i%4],l:100});
+  if(!raf)raf=requestAnimationFrame(tick);
+}
+function tick(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  parts=parts.filter(function(p){return p.l>0});
+  parts.forEach(function(p){
+    p.x+=p.vx;p.y+=p.vy;p.vy+=.35;p.l--;
+    cx.globalAlpha=Math.max(p.l/100,0);cx.fillStyle=p.c;cx.font=p.s+"px serif";cx.fillText("\u2665",p.x,p.y);
+  });
+  raf=parts.length?requestAnimationFrame(tick):0;
+}
+
+/* ---- romantic background music (synthesized, no files) ---- */
+var AC=window.AudioContext||window.webkitAudioContext,ac,master,bus,step=0,nxt=0,muted=false;
+var CH=[[48,55,60,64,67],[43,50,55,59,62],[45,52,57,60,64],[40,47,52,55,59],[41,48,53,57,60],[48,55,60,64,67],[41,48,53,57,60],[43,50,55,59,62]];
+var ARP=[1,2,3,4,3,2,3,2];
+function fq(m){return 440*Math.pow(2,(m-69)/12)}
+function note(t,m,d,type,v,att){
+  var o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=fq(m);
+  g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(v,t+att);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+  o.connect(g);g.connect(bus);o.start(t);o.stop(t+d+0.1);
+}
+function sched(){
+  while(nxt<ac.currentTime+1.5){
+    var bar=Math.floor(step/8)%8,i=step%8,c=CH[bar];
+    if(i===0)c.slice(0,3).forEach(function(m){note(nxt,m,4.3,"triangle",.16,1.3)});
+    note(nxt,c[ARP[i]]+12,1.8,"sine",.26,.015);
+    if(i===0||(i===4&&Math.random()<.6))note(nxt,c[2+Math.floor(Math.random()*3)]+12,2.6,"sine",.18,.06);
+    step++;nxt+=.5;
+  }
+}
+function musicInit(){
+  if(!AC||ac)return;
+  try{
+    ac=new AC();master=ac.createGain();master.gain.value=0;var cp=ac.createDynamicsCompressor();master.connect(cp);cp.connect(ac.destination);
+    bus=ac.createGain();bus.connect(master);
+    var len=ac.sampleRate*2.6,buf=ac.createBuffer(2,len,ac.sampleRate);
+    for(var ch=0;ch<2;ch++){var d=buf.getChannelData(ch);for(var k=0;k<len;k++)d[k]=(Math.random()*2-1)*Math.pow(1-k/len,2.5)}
+    var cv2=ac.createConvolver();cv2.buffer=buf;var wet=ac.createGain();wet.gain.value=.5;
+    bus.connect(cv2);cv2.connect(wet);wet.connect(master);
+    master.gain.setValueAtTime(0,ac.currentTime);master.gain.linearRampToValueAtTime(1,ac.currentTime+2.5);
+    nxt=ac.currentTime+.1;setInterval(sched,250);
+    
+    ac.resume&&ac.resume().catch(function(){});
+  }catch(e){}
+}
+function wake(){
+  if(yt&&ytReady&&!ytFail){if(!ytStarted){try{yt.unMute();yt.setVolume(80);yt.playVideo();ytStarted=true}catch(e){}}return}
+  musicInit();if(ac&&ac.state!=="running")ac.resume().catch(function(){})
+}
+["pointerdown","pointerup","mouseup","touchend","keydown","click"].forEach(function(ev){document.addEventListener(ev,wake,{passive:true})});
+setInterval(function(){var b=$("mute");if(ytStarted){b.innerHTML=muted?"&#9835; Music off":"&#9835; Music on";return}if(!ac||ac.state!=="running"){b.innerHTML="&#9835; Music"}else if(!muted){b.innerHTML="&#9835; Music on"}},700);
+$("mute").onclick=function(){
+  muted=!muted;wake();
+  if(ytStarted){try{muted?yt.mute():yt.unMute()}catch(e){}}
+  else if(master){master.gain.cancelScheduledValues(ac.currentTime);master.gain.setValueAtTime(master.gain.value,ac.currentTime);master.gain.linearRampToValueAtTime(muted?0:1,ac.currentTime+.4)}
+  this.setAttribute("aria-pressed",muted);this.innerHTML=muted?"&#9835; Music off":"&#9835; Music on";
+};
+
+/* ---- YouTube song (works on normal hosting; falls back to synth if blocked) ---- */
+var yt,ytReady=false,ytStarted=false,ytFail=false,VID="AraEZiRpI4A";
+window.onYouTubeIframeAPIReady=function(){
+  try{yt=new YT.Player("yt",{width:"200",height:"200",videoId:VID,
+    playerVars:{playsinline:1,controls:0,loop:1,playlist:VID,rel:0,modestbranding:1},
+    events:{onReady:function(){ytReady=true},
+      onError:function(){ytFail=true;ytReady=false;if(ytStarted){ytStarted=false;wake()}}}})}catch(e){ytFail=true}
+};
+var tg=document.createElement("script");tg.src="https://www.youtube.com/iframe_api";tg.onerror=function(){ytFail=true};document.head.appendChild(tg);
+})();
+</script>
+</body>
+</html>
